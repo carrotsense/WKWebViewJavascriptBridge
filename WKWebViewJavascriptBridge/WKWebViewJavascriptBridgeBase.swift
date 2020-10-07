@@ -16,9 +16,9 @@ protocol WKWebViewJavascriptBridgeBaseDelegate: AnyObject {
 public class WKWebViewJavascriptBridgeBase: NSObject {
     var isLogEnable = false
     
-    public typealias Callback = (_ responseData: Any?) -> Void
-    public typealias Handler = (_ parameters: [String: Any]?, _ callback: Callback?) -> Void
-    public typealias Message = [String: Any]
+    public typealias Callback = (_ responseData: NSDictionary) -> Void
+    public typealias Handler = (_ parameters: AnyObject, _ callback: Callback?) -> Void
+    public typealias Message = [String: AnyObject]
     
     weak var delegate: WKWebViewJavascriptBridgeBaseDelegate?
     var startupMessageQueue = [Message]()
@@ -33,18 +33,18 @@ public class WKWebViewJavascriptBridgeBase: NSObject {
     }
     
     func send(handlerName: String, data: Any?, callback: Callback?) {
-        var message = [String: Any]()
-        message["handlerName"] = handlerName
+        var message = Message()
+        message["handlerName"] = handlerName as AnyObject
         
         if data != nil {
-            message["data"] = data
+            message["data"] = data as AnyObject?
         }
         
         if callback != nil {
             uniqueId += 1
             let callbackID = "native_iOS_cb_\(uniqueId)"
             responseCallbacks[callbackID] = callback
-            message["callbackID"] = callbackID
+            message["callbackID"] = callbackID as AnyObject
         }
         
         queue(message: message)
@@ -61,7 +61,9 @@ public class WKWebViewJavascriptBridgeBase: NSObject {
             
             if let responseID = message["responseID"] as? String {
                 guard let callback = responseCallbacks[responseID] else { continue }
-                callback(message["responseData"])
+                if let responseData = message["responseData"] != nil ? message["responseData"] : NSNull() {
+                    callback(responseData as! NSDictionary)
+                }
                 responseCallbacks.removeValue(forKey: responseID)
             } else {
                 var callback: Callback?
@@ -81,7 +83,8 @@ public class WKWebViewJavascriptBridgeBase: NSObject {
                     log("NoHandlerException, No handler for message from JS: \(message)")
                     continue
                 }
-                handler(message["data"] as? [String : Any], callback)
+                let msgData = message["data"] != nil ? message["data"] : NSNull()
+                handler(msgData!, callback)
             }
         }
     }
